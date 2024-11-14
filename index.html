@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة المواد الدراسية</title>
+    <style>
+        @font-face {
+            font-family: 'Hacen Samra';
+            src: url('Hacen_Samra.ttf') format('truetype');
+        }
+
+        @font-face {
+            font-family: 'VIP Hala Bold';
+            src: url('VIP_Hala_Bold.ttf') format('truetype');
+        }
+
+        @font-face {
+            font-family: 'Baloo Bhaijaan 2';
+            src: url('Baloo_Bhaijaan_2.ttf') format('truetype');
+        }
+
+        body {
+            font-family: 'Hacen Samra';
+            background-color: #e0f7fa;
+            margin: 0;
+            padding: 20px;
+            direction: rtl;
+        }
+        h1 {
+            text-align: center;
+            color: #00796b;
+        }
+        button {
+            font-family: 'VIP Hala Bold';
+            padding: 15px 20px;
+            background-color: #00796b;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 10px;
+            border-radius: 8px;
+            transition: background-color 0.3s, transform 0.2s;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #004d40;
+            transform: scale(1.05);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        th, td {
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #ddd;
+            background-color: #ffffff;
+        }
+        th {
+            background-color: #00796b;
+            color: white;
+        }
+        #currentMaterial {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 20px;
+            color: #d32f2f;
+        }
+        #timer {
+            display: block;
+            font-size: 20px;
+            text-align: center;
+            margin-top: 10px;
+        }
+        #pendingLessons {
+            display: none;
+            margin-top: 20px;
+        }
+        #digitalClock {
+            position: fixed;
+            top: 10px;
+            left: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #00796b;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .alertBox {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #a5d6a7;
+            color: black;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 16px;
+            width: auto;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 1000;
+        }
+
+        /* تصميم متجاوب للأجهزة اللوحية والشاشات الصغيرة */
+        @media (max-width: 768px) {
+            body {
+                font-size: 14px;
+                padding: 10px;
+            }
+            h1 {
+                font-size: 22px;
+            }
+            button {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+            table {
+                font-size: 16px;
+            }
+            th, td {
+                padding: 10px;
+            }
+            #currentMaterial {
+                font-size: 18px;
+            }
+            #timer {
+                font-size: 16px;
+            }
+            .alertBox {
+                font-size: 14px;
+                padding: 8px;
+            }
+            .button-container {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+
+        /* تصميم متجاوب للشاشات الصغيرة جداً مثل الهواتف */
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 18px;
+            }
+            button {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            #digitalClock {
+                font-size: 18px;
+            }
+            table, #currentMaterial, #timer, .alertBox {
+                font-size: 14px;
+            }
+        }
+    </style>
+
+</head>
+<body>
+    <div id="digitalClock"></div>
+    <h1>جدول الكتروني</h1>
+    
+    <div class="button-container">
+        <button id="addMaterialButton" onclick="addNewMaterial()">إضافة مادة جديدة</button>
+        <button id="resetButton" onclick="resetTable()">إعادة تعيين جدول</button>
+        <button id="showPendingButton" onclick="showPendingLessons()">عرض الدروس المؤجلة</button>
+    </div>
+
+    <div id="currentMaterial"></div>
+    <div id="timer"></div>
+
+    <table id="lessonTable">
+        <thead>
+            <tr>
+                <th>المادة</th>
+                <th>الدروس</th>
+                <th>عدد الدقائق</th>
+                <th>المكافأة</th>
+                <th>بدء</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <div id="pendingLessons">
+        <h2 id="pendingLessonsHeader" style="display:none;">الدروس المؤجلة</h2>
+        <table id="pendingTable">
+            <thead>
+                <tr>
+                    <th>المادة</th>
+                    <th>الدرس</th>
+                    <th>التاريخ</th>
+                    <th>إتمام</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="alertBox" id="alertBox"></div>
+
+    <script>
+        let materialIntervals = [];
+        let materials = JSON.parse(localStorage.getItem('materials')) || [];
+        let pendingLessons = JSON.parse(localStorage.getItem('pendingLessons')) || [];
+        let countdownInterval;
+        let countdownEndTime;
+
+        document.addEventListener("DOMContentLoaded", () => {
+        renderTable();
+        updateClock();
+        checkForActiveCountdown(); // التحقق من المؤقت النشط عند تحميل الصفحة
+    });
+
+    function startCountdown(duration, material) {
+        // حساب وقت الانتهاء بناءً على المدة المطلوبة للمادة
+        countdownEndTime = new Date(Date.now() + duration * 60 * 1000);
+        
+        // تخزين وقت الانتهاء والمادة النشطة في localStorage
+        localStorage.setItem('countdownEndTime', countdownEndTime.toISOString()); 
+        localStorage.setItem('activeMaterial', JSON.stringify(material)); 
+        
+        // تحديث عرض المؤقت للمادة الحالية
+        document.getElementById('currentMaterial').textContent = `وقت دراسة ${material.name}`;
+        updateCountdownDisplay(); // عرض المؤقت فور البدء
+        countdownInterval = setInterval(updateCountdownDisplay, 1000); // تحديث العد التنازلي كل ثانية
+    }
+
+    function updateCountdownDisplay() {
+        // استرجاع وقت الانتهاء من localStorage وحساب الوقت المتبقي
+        const endTime = new Date(localStorage.getItem('countdownEndTime'));
+        const timeLeft = Math.max(0, Math.floor((endTime - new Date()) / 1000));
+        
+        if (timeLeft <= 0) {
+            clearInterval(countdownInterval);
+            finishCountdown();
+        } else {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('timer').textContent = `المتبقي: ${minutes} دقيقة ${seconds} ثانية`;
+            localStorage.setItem('remainingTime', timeLeft); // تحديث الوقت المتبقي في localStorage
+        }
+    }
+
+    function finishCountdown() {
+        document.getElementById('currentMaterial').textContent = "";
+        document.getElementById('timer').textContent = "";
+        localStorage.removeItem('countdownEndTime'); // إزالة وقت الانتهاء عند الانتهاء
+        localStorage.removeItem('remainingTime'); // إزالة الوقت المتبقي
+        localStorage.removeItem('activeMaterial'); // إزالة المادة النشطة
+        showAlert("انتهى وقت الدراسة.");
+    }
+
+    function checkForActiveCountdown() {
+        // التحقق من وقت الانتهاء المخزن والمادة النشطة عند تحميل الصفحة
+        const endTime = localStorage.getItem('countdownEndTime');
+        const activeMaterial = JSON.parse(localStorage.getItem('activeMaterial'));
+        
+        // إذا كان هناك مؤقت نشط، استئناف العد من الوقت المتبقي
+        if (endTime && activeMaterial) {
+            const timeLeft = Math.max(0, Math.floor((new Date(endTime) - new Date()) / 1000));
+            if (timeLeft > 0) {
+                document.getElementById('currentMaterial').textContent = `وقت دراسة ${activeMaterial.name}`;
+                countdownInterval = setInterval(updateCountdownDisplay, 1000); // بدء العد التنازلي من الوقت المتبقي
+                updateCountdownDisplay(); // عرض المؤقت مباشرةً عند التحميل
+            } else {
+                finishCountdown(); // إنهاء المؤقت إذا كان قد انتهى الوقت
+            }
+        }
+    }
+
+
+    function moveToPendingLessons(material) {
+        // إضافة كل درس غير مكتمل من المادة إلى قائمة الدروس المؤجلة
+        material.lessons.forEach(lesson => {
+            if (!lesson.isCompleted && !pendingLessons.some(pending => pending.lesson === lesson.lessonName && pending.material === material.name)) {
+                pendingLessons.push({
+                    material: material.name,
+                    lesson: lesson.lessonName,
+                    date: new Date().toLocaleDateString('ar-EG') // إضافة التاريخ الحالي للدروس المؤجلة
+                });
+            }
+        });
+        
+        saveMaterials(); // حفظ التحديثات في localStorage
+        renderPendingLessonsTable(); // عرض جدول الدروس المؤجلة مباشرةً
+    }
+
+    function renderPendingLessonsTable() {
+        // جلب العنصر الخاص بجدول الدروس المؤجلة
+        const pendingTableBody = document.getElementById("pendingTable").getElementsByTagName("tbody")[0];
+        pendingTableBody.innerHTML = ''; // مسح محتوى الجدول لإعادة ملئه بالدروس الجديدة
+
+        if (pendingLessons.length === 0) {
+            document.getElementById('pendingLessons').style.display = 'none';
+            document.getElementById('pendingLessonsHeader').style.display = 'none';
+        } else {
+            document.getElementById('pendingLessons').style.display = 'block';
+            document.getElementById('pendingLessonsHeader').style.display = 'block';
+
+            // عرض كل درس مؤجل في الجدول
+            pendingLessons.forEach(pendingLesson => {
+                const row = pendingTableBody.insertRow();
+                const cell1 = row.insertCell(0);
+                const cell2 = row.insertCell(1);
+                const cell3 = row.insertCell(2);
+                const cell4 = row.insertCell(3);
+
+                cell1.textContent = pendingLesson.material;
+                cell2.textContent = pendingLesson.lesson;
+                cell3.textContent = pendingLesson.date;
+
+                // زر إتمام الدرس
+                const completeButton = document.createElement('button');
+                completeButton.textContent = 'إتمام';
+                completeButton.onclick = () => completePendingLesson(pendingLesson);
+                cell4.appendChild(completeButton);
+            });
+        }
+    }
+
+    function completePendingLesson(pendingLesson) {
+        // إزالة الدرس من قائمة الدروس المؤجلة
+        pendingLessons = pendingLessons.filter(pending => !(pending.material === pendingLesson.material && pending.lesson === pendingLesson.lesson));
+        saveMaterials(); // حفظ التحديثات
+
+        // إعادة عرض جدول الدروس المؤجلة بعد الإتمام
+        renderPendingLessonsTable();
+        showAlert(`تم إتمام الدرس ${pendingLesson.lesson} من المادة ${pendingLesson.material}`);
+    }
+
+    // تحديث وظيفة انتهاء المؤقت لتضمين الدروس المؤجلة
+    function finishCountdown() {
+        const activeMaterial = JSON.parse(localStorage.getItem('activeMaterial')); // استرجاع المادة النشطة
+        if (activeMaterial) {
+            moveToPendingLessons(activeMaterial); // نقل الدروس غير المكتملة إلى الدروس المؤجلة
+        }
+        
+        document.getElementById('currentMaterial').textContent = "";
+        document.getElementById('timer').textContent = "";
+        localStorage.removeItem('countdownEndTime'); // إزالة وقت الانتهاء
+        localStorage.removeItem('remainingTime'); // إزالة الوقت المتبقي
+        localStorage.removeItem('activeMaterial'); // إزالة المادة النشطة
+        showAlert("انتهى وقت الدراسة وتم نقل الدروس غير المكتملة إلى الدروس المؤجلة.");
+    }
+
+
+// تعديل زر "ابدأ" في دالة renderTable
+      const startButton = document.createElement('button');
+      startButton.textContent = 'ابدأ';
+      startButton.onclick = () => {
+          startCountdown(material.studyDuration, material); // تمرير كائن المادة
+          material.started = true; // تعيين الحالة إلى "تم البدء"
+          startButton.style.display = 'none';
+          saveMaterials();
+      };
+
+        function addNewMaterial() {
+            const materialName = prompt("أدخل اسم المادة:");
+            if (materialName) {
+                const material = {
+                    name: materialName,
+                    lessons: [],
+                    rewardTime: 0,
+                    studyDuration: 0,
+                    started: false
+                };
+                setStudyTime(material);
+                materials.push(material);
+                saveMaterials();
+                renderTable();
+                document.getElementById('resetButton').style.display = 'block';
+            }
+        }
+
+// باقي الكود يبقى كما هو...
+
+
+        document.addEventListener("DOMContentLoaded", () => {
+            renderTable();
+            updateClock();
+        });
+
+        function setStudyTime(material) {
+            const studyDuration = prompt("كم عدد الدقائق لمذاكرة المادة؟");
+            if (studyDuration) {
+                material.studyDuration = parseInt(studyDuration) || 0;
+                addLesson(material);
+            } else {
+                alert("يجب إدخال عدد صحيح من الدقائق.");
+            }
+        }
+
+        function addLesson(material) {
+            const lessonName = prompt("أدخل اسم الدرس:");
+            if (lessonName) {
+                material.lessons.push({ lessonName, isCompleted: false });
+                const hasMoreLessons = confirm("هل تريد إضافة درس آخر للمادة نفسها؟");
+                if (hasMoreLessons) {
+                    addLesson(material);
+                } else {
+                    setRewardTime(material);
+                }
+            }
+        }
+
+        function setRewardTime(material) {
+            const rewardTime = prompt("أدخل وقت المكافأة بالدقائق (مثال: 30):");
+            material.rewardTime = parseInt(rewardTime) || 0;
+            saveMaterials();
+            askForMoreMaterials();
+        }
+
+        function askForMoreMaterials() {
+            const addAnother = confirm("هل تريد إضافة مادة جديدة؟");
+            if (addAnother) {
+                addNewMaterial();
+            } else {
+                renderTable();
+            }
+        }
+
+        function saveMaterials() {
+            localStorage.setItem('materials', JSON.stringify(materials));
+            localStorage.setItem('pendingLessons', JSON.stringify(pendingLessons));
+        }
+
+        function renderTable() {
+            const tableBody = document.getElementById("lessonTable").getElementsByTagName("tbody")[0];
+            tableBody.innerHTML = '';
+
+            if (materials.length === 0) {
+                document.getElementById('lessonTable').style.display = 'none';
+                document.getElementById('resetButton').style.display = 'none'; // إخفاء زر إعادة التعيين
+                return;
+            }
+
+            materials.forEach((material, index) => {
+                const row = tableBody.insertRow();
+                const cell1 = row.insertCell(0);
+                const cell2 = row.insertCell(1);
+                const cell3 = row.insertCell(2);
+                const cell4 = row.insertCell(3);
+                const cell5 = row.insertCell(4);
+
+                cell1.innerHTML = material.name;
+                cell2.innerHTML = material.lessons.map((lesson, i) => `
+                    <div>${lesson.lessonName} 
+                        <input type="checkbox" ${lesson.isCompleted ? 'checked' : ''} 
+                            onchange="toggleLessonComplete(${index}, ${i})" />
+                    </div>
+                `).join('');
+
+                cell3.innerHTML = `${material.studyDuration} دقيقة`;
+                cell4.innerHTML = `${material.rewardTime} دقيقة`;
+
+                const startButton = document.createElement('button');
+                startButton.textContent = 'ابدأ'
+                startButton.onclick = () => {
+                    startCountdown(material.studyDuration, material);
+                    material.started = true; // تعيين الحالة إلى "تم البدء"
+                    startButton.style.display = 'none';
+                    saveMaterials();
+                };
+                if (material.started) startButton.style.display = 'none'; // إخفاء الزر إذا كانت المادة بدأت مسبقًا
+                cell5.appendChild(startButton);
+            });
+
+            document.getElementById('lessonTable').style.display = 'block';
+        }
+
+        function toggleLessonComplete(materialIndex, lessonIndex) {
+            materials[materialIndex].lessons[lessonIndex].isCompleted = !materials[materialIndex].lessons[lessonIndex].            isCompleted;
+            saveMaterials();
+            renderTable();
+
+            const allLessonsCompleted = materials[materialIndex].lessons.every(lesson => lesson.isCompleted);
+            if (allLessonsCompleted) {
+                materials.splice(materialIndex, 1);
+                saveMaterials();
+                renderTable();
+                showAlert("تم الانتهاء من جميع الدروس، وتم حذف المادة.");
+            }
+        }
+
+
+
+        function moveToPendingLessons(material) {
+            material.lessons.forEach(lesson => {
+                if (!lesson.isCompleted && !pendingLessons.some(pending => pending.lesson === lesson.lessonName && pending.material === material.name)) {
+                    pendingLessons.push({
+                        material: material.name,
+                        lesson: lesson.lessonName,
+                        date: new Date().toLocaleDateString('ar-EG')
+                    });
+                }
+            });
+            saveMaterials();
+        }
+
+        function showPendingLessons() {
+            const pendingTableBody = document.getElementById("pendingTable").getElementsByTagName("tbody")[0];
+            pendingTableBody.innerHTML = '';
+
+            if (pendingLessons.length === 0) {
+                showAlert("لا توجد دروس مؤجلة.");
+                document.getElementById('pendingLessons').style.display = 'none';
+                document.getElementById('pendingLessonsHeader').style.display = 'none';
+                return;
+            }
+
+            pendingLessons.forEach(pendingLesson => {
+                const row = pendingTableBody.insertRow();
+                const cell1 = row.insertCell(0);
+                const cell2 = row.insertCell(1);
+                const cell3 = row.insertCell(2);
+                const cell4 = row.insertCell(3);
+
+                cell1.textContent = pendingLesson.material;
+                cell2.textContent = pendingLesson.lesson;
+                cell3.textContent = pendingLesson.date;
+
+                const completeButton = document.createElement('button');
+                completeButton.textContent = 'إتمام';
+                completeButton.onclick = () => completePendingLesson(pendingLesson);
+                cell4.appendChild(completeButton);
+            });
+
+            document.getElementById('pendingLessons').style.display = 'block';
+            document.getElementById('pendingLessonsHeader').style.display = 'block';
+        }
+
+        function completePendingLesson(pendingLesson) {
+            // إزالة الدرس من قائمة الدروس المؤجلة
+            pendingLessons = pendingLessons.filter(pending => !(pending.material === pendingLesson.material && pending.lesson === pendingLesson.lesson));
+            saveMaterials();
+    
+            // تحقق مما إذا كانت المادة لا تحتوي على أي دروس مؤجلة
+            const materialIndex = materials.findIndex(material => material.name === pendingLesson.material);
+            if (materialIndex !== -1) {
+                const hasPendingLessons = pendingLessons.some(pending => pending.material === pendingLesson.material);
+                if (!hasPendingLessons) {
+                    // إذا لم يتبقى أي دروس مؤجلة، احذف المادة
+                    materials.splice(materialIndex, 1);
+                    saveMaterials();
+                    showAlert(`تم إتمام جميع الدروس للمادة ${pendingLesson.material} وتم حذفها من الجدول.`);
+                    setTimeout(() => {
+                        location.reload(); // إعادة تحميل الصفحة بعد 2 ثانية
+                    }, 2000);
+                }
+            }
+
+            showPendingLessons();
+        }
+
+        function showAlert(message) {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.textContent = message;
+            alertBox.style.opacity = 1;
+            alertBox.style.display = 'block';
+
+            setTimeout(() => {
+                alertBox.style.opacity = 0;
+                setTimeout(() => {
+                    alertBox.style.display = 'none';
+                }, 500);
+            }, 3000);
+        }
+
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';            hours = hours % 12;
+            hours = hours ? String(hours).padStart(2, '0') : '12';
+
+            document.getElementById('digitalClock').textContent = `${hours}:${minutes}:${seconds} ${ampm}`;
+        }
+        function resetTable() {
+           materials = [];
+           pendingLessons = [];
+           localStorage.removeItem('countdownEndTime'); // إزالة المؤقت النشط عند إعادة تعيين الجدول
+           saveMaterials();
+           renderTable();
+           showAlert("تم إعادة تعيين الجدول.");
+           document.getElementById('resetButton').style.display = 'none';
+        }
+
+
+
+        setInterval(updateClock, 1000);
+        updateClock();
+    </script>
+</body>
+</html>
